@@ -20,7 +20,7 @@ public class TstBService {
     }
 
     @Transactional
-    public void save() {
+    public void updateTstsB() {
         TstB tstB = repository.findById(TstB.ID).get();
         Long value = tstB.getValue();
         log.info("Value = {}", value);

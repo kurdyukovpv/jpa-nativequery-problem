@@ -5,7 +5,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import ru.problem.dao.TstARepository;
 import ru.problem.model.TstA;
-import ru.problem.model.TstB;
 
 import javax.transaction.Transactional;
 import java.time.LocalDateTime;
@@ -27,18 +26,14 @@ public class TstAService {
     private int counter = 0;
 
     @Transactional
-    public void save1() {
-        TstB tstB = new TstB();
-        tstB.setId(1L);
-        TstA tstA = TstA.builder().name(LocalDateTime.now().toString()).tstB(tstB).build();
+    public void save() {
+        TstA tstA = TstA.builder().name(LocalDateTime.now().toString()).build();
 
-        bService.save(); //делаем что-то с сущностью TstB
+        bService.updateTstsB(); //update TstB (findById+save) @Transactional
+        cService.executeNative(); // native query 'select 1' @Transactional
+        repository.save(tstA); // insert TstA @Transactional
 
-        cService.get(); //делаем что-то нативно
-
-        repository.save(tstA); //сохраняем родительскую сущность
-
-        //Эмулируем долгую транзакцию для каждого второго запроса
+        //emulate long slow transaction for each second request
         counter++;
         log.info("counter {}", counter);
         try {

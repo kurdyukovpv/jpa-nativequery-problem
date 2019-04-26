@@ -17,7 +17,7 @@ public class TstCService {
     private EntityManager em;
 
     @Transactional
-    public void get() {
+    public void executeNative() {
         Query q = em.createNativeQuery("select 1");
         q.getResultList();
     }

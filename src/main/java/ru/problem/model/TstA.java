@@ -24,8 +24,4 @@ public class TstA  {
     @Basic
     @Column(name = "name")
     private String name;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "b_id", referencedColumnName = "id")
-    private TstB tstB;
 }

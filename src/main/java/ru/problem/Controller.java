@@ -17,7 +17,7 @@ public class Controller {
 
     @GetMapping(value = "/tst", produces = APPLICATION_JSON_UTF8_VALUE)
     public ResponseEntity tst1() {
-        aService.save1();
+        aService.save();
         return ResponseEntity.ok("{\"result\":\"OK\"}");
     }
 }
