@@ -3,6 +3,7 @@ package ru.problem.service;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import ru.problem.controller.ControllerRequest;
 import ru.problem.dao.TstARepository;
 import ru.problem.model.TstA;
 
@@ -24,17 +25,19 @@ public class TstAService {
     private TstCService cService;
 
     @Transactional
-    public void save(Long sleep) {
+    public void save(ControllerRequest request) {
         TstA tstA = TstA.builder().name(LocalDateTime.now().toString()).build();
 
-        bService.updateTstsB(); //update TstB (findById+save) @Transactional
-        cService.executeNative(); // native query 'select 1' @Transactional
+        bService.updateTstsB(request.getBId()); //update TstB (findById+save) @Transactional
+        if (request.isWithNative()) {
+            cService.executeNative(); // native query 'select 1' @Transactional
+        }
         repository.save(tstA); // insert TstA @Transactional
 
         //emulate long slow transaction if requested
         try {
-            if (sleep != null) {
-                Thread.sleep(sleep);
+            if (request.getSleep() != null) {
+                Thread.sleep(request.getSleep().toMillis());
             }
         } catch (InterruptedException e) {
             log.error("Exception", e);

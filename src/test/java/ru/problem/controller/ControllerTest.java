@@ -14,15 +14,14 @@ import org.springframework.web.context.WebApplicationContext;
 import ru.problem.Application;
 
 import java.time.Duration;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ExecutionException;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiConsumer;
+import java.util.function.Function;
 
-import static java.util.Collections.singletonList;
+import static java.util.function.Function.identity;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -50,59 +49,114 @@ public class ControllerTest {
         assertThat(mvc).isNotNull();
     }
 
-    private ControllerResponse tst(Long sleep) throws Exception {
-        Map<String, List<String>> params = new HashMap<>();
-        if (sleep != null) {
-            params.put("sleep", singletonList(sleep.toString()));
+    private ControllerResponse tst(
+            Function<ControllerRequest.ControllerRequestBuilder, ControllerRequest.ControllerRequestBuilder> filler
+    ) {
+        ControllerRequest request = filler.apply(ControllerRequest.builder()).build();
+        try {
+            String json = mvc
+                    .perform(get("/tst")
+                            .params(toMultiValueMap(request.toParams()))
+                    )
+                    .andExpect(status().isOk())
+                    .andReturn().getResponse().getContentAsString();
+            assertThat(json).isNotBlank();
+            return mapper.readValue(json, ControllerResponse.class);
+        } catch (Exception e) {
+            throw new IllegalStateException("Fail to request for: " + request, e);
         }
-        String json = mvc
-                .perform(get("/tst")
-                        .params(toMultiValueMap(params))
-                )
-                .andExpect(status().isOk())
-                .andReturn().getResponse().getContentAsString();
-        assertThat(json).isNotBlank();
-        return mapper.readValue(json, ControllerResponse.class);
+    }
+
+    private CompletableFuture<ControllerResponse> tstA(
+            Function<ControllerRequest.ControllerRequestBuilder, ControllerRequest.ControllerRequestBuilder> filler
+    ) {
+        return CompletableFuture
+                .supplyAsync(() -> tst(filler), pool)
+                .handle((res, thr) -> {
+                    assertThat(res).isNotNull();
+                    assertThat(res.getResult()).isEqualTo("OK");
+                    assertThat(res.getThread()).isNotBlank().startsWith("test-pool-");
+                    return res;
+                });
     }
 
     @Test
-    public void testFast() throws Exception {
-        ControllerResponse response = pool.submit(() -> tst(null)).get();
-        assertThat(response).isNotNull();
-        assertThat(response.getResult()).isEqualTo("OK");
-        assertThat(response.getThread()).isNotBlank();
+    public void testFast() {
+        ControllerResponse response = tstA(identity()).join();
         assertThat(response.getDuration()).isLessThanOrEqualTo(Duration.ofSeconds(1));
     }
 
     @Test
-    public void testSlow() throws Exception {
+    public void testSlow() {
         Duration sleep = Duration.ofSeconds(1);
-        ControllerResponse response = pool.submit(() -> tst(sleep.toMillis())).get();
-        assertThat(response).isNotNull();
-        assertThat(response.getResult()).isEqualTo("OK");
-        assertThat(response.getThread()).isNotBlank();
+        ControllerResponse response = tstA(req -> req.sleep(sleep)).join();
         assertThat(response.getDuration()).isGreaterThanOrEqualTo(sleep);
     }
 
-    @Test
-    public void testSlowBeforeFast() throws ExecutionException, InterruptedException {
+    private void testSlowBeforeFast(
+            Duration sleep,
+            Function<ControllerRequest.ControllerRequestBuilder, ControllerRequest.ControllerRequestBuilder> filler,
+            BiConsumer<ControllerResponse, ControllerResponse> consumer
+    ) throws InterruptedException {
+        CompletableFuture<ControllerResponse> slowFuture = tstA(filler.andThen(req -> req.sleep(sleep)));
+        //Чем больше спим - тем меньше висим в блокировке.
+        //Но если совсем не спать, то быстрый запрос может прилететь раньше медленного - и тогда мы в блокировку совсем не попадём.
+        Thread.sleep(20);
+        CompletableFuture<ControllerResponse> fastFuture = tstA(filler);
+        consumer.accept(slowFuture.join(), fastFuture.join());
+    }
+
+    @Test//Flaky
+    public void testSlowBeforeFast_withNative_onSameB() throws InterruptedException {
         Duration sleep = Duration.ofSeconds(1);
-        Future<ControllerResponse> slowFuture = pool.submit(() -> tst(sleep.toMillis()));
-        Future<ControllerResponse> fastFuture = pool.submit(() -> tst(null));
-        ControllerResponse slow = slowFuture.get();
-        ControllerResponse fast = fastFuture.get();
+        testSlowBeforeFast(sleep, req -> req.bId(1), (slow, fast) -> {
+            //Slow must be slow
+            assertThat(slow.getDuration()).isGreaterThanOrEqualTo(sleep);
+            //todo Fast must be fast but it is slow too
+            assertThat(fast.getDuration()).isGreaterThanOrEqualTo(sleep);
+            //But they works on different threads
+            assertThat(fast.getThread()).isNotEqualTo(slow.getThread());
+        });
+    }
 
-        //Slow must be slow
-        assertThat(slow.getResult()).isEqualTo("OK");
-        assertThat(slow.getThread()).isNotBlank();
-        assertThat(slow.getDuration()).isGreaterThanOrEqualTo(sleep);
+    @Test
+    public void testSlowBeforeFast_withNative_onDifferentB() throws InterruptedException {
+        Duration sleep = Duration.ofSeconds(1);
+        AtomicLong bId = new AtomicLong(1);
+        testSlowBeforeFast(sleep, req -> req.bId(bId.getAndIncrement()), (slow, fast) -> {
+            //Slow must be slow
+            assertThat(slow.getDuration()).isGreaterThanOrEqualTo(sleep);
+            //Fast must be fast and it is fast
+            assertThat(fast.getDuration()).isLessThanOrEqualTo(sleep);
+            //But they works on different threads
+            assertThat(fast.getThread()).isNotEqualTo(slow.getThread());
+        });
+    }
 
-        //todo Fast must be fast but it is slow too
-        assertThat(fast.getResult()).isEqualTo("OK");
-        assertThat(fast.getThread()).isNotBlank();
-        assertThat(fast.getDuration()).isGreaterThanOrEqualTo(sleep);
+    @Test
+    public void testSlowBeforeFast_withoutNative_onSameB() throws InterruptedException {
+        Duration sleep = Duration.ofSeconds(1);
+        testSlowBeforeFast(sleep, req -> req.bId(1).withNative(false), (slow, fast) -> {
+            //Slow must be slow
+            assertThat(slow.getDuration()).isGreaterThanOrEqualTo(sleep);
+            //Fast must be fast and it is fast
+            assertThat(fast.getDuration()).isLessThanOrEqualTo(sleep);
+            //But they works on different threads
+            assertThat(fast.getThread()).isNotEqualTo(slow.getThread());
+        });
+    }
 
-        //But they works on different threads
-        assertThat(fast.getThread()).isNotEqualTo(slow.getThread());
+    @Test
+    public void testSlowBeforeFast_withoutNative_onDifferentB() throws InterruptedException {
+        Duration sleep = Duration.ofSeconds(1);
+        AtomicLong bId = new AtomicLong(1);
+        testSlowBeforeFast(sleep, req -> req.bId(bId.getAndIncrement()).withNative(false), (slow, fast) -> {
+            //Slow must be slow
+            assertThat(slow.getDuration()).isGreaterThanOrEqualTo(sleep);
+            //Fast must be fast and it is fast
+            assertThat(fast.getDuration()).isLessThanOrEqualTo(sleep);
+            //But they works on different threads
+            assertThat(fast.getThread()).isNotEqualTo(slow.getThread());
+        });
     }
 }

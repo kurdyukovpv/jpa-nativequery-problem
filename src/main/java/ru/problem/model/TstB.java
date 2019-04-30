@@ -16,8 +16,6 @@ import javax.persistence.*;
 @Table(name = "tst_b")
 public class TstB {
 
-    public static Long ID = 1L;
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id")
