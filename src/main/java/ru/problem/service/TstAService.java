@@ -23,22 +23,18 @@ public class TstAService {
     @Autowired
     private TstCService cService;
 
-    private int counter = 0;
-
     @Transactional
-    public void save() {
+    public void save(Long sleep) {
         TstA tstA = TstA.builder().name(LocalDateTime.now().toString()).build();
 
         bService.updateTstsB(); //update TstB (findById+save) @Transactional
         cService.executeNative(); // native query 'select 1' @Transactional
         repository.save(tstA); // insert TstA @Transactional
 
-        //emulate long slow transaction for each second request
-        counter++;
-        log.info("counter {}", counter);
+        //emulate long slow transaction if requested
         try {
-            if (counter % 2 == 0) {
-                Thread.sleep(10000);
+            if (sleep != null) {
+                Thread.sleep(sleep);
             }
         } catch (InterruptedException e) {
             log.error("Exception", e);
