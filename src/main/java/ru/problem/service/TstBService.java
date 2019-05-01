@@ -20,8 +20,8 @@ public class TstBService {
     }
 
     @Transactional
-    public void updateTstsB() {
-        TstB tstB = repository.findById(TstB.ID).get();
+    public void updateTstsB(long id) {
+        TstB tstB = repository.findById(id).get();
         Long value = tstB.getValue();
         log.info("Value = {}", value);
         tstB.setValue(++value);

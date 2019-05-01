@@ -1,10 +1,10 @@
 package ru.problem.controller;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
-import org.springframework.lang.Nullable;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.RestController;
 import ru.problem.service.TstAService;
 
@@ -16,6 +16,7 @@ import static org.springframework.http.MediaType.APPLICATION_JSON_UTF8_VALUE;
 
 
 @RestController
+@Slf4j
 public class Controller {
 
     @Autowired
@@ -23,10 +24,11 @@ public class Controller {
 
     @GetMapping(value = "/tst", produces = APPLICATION_JSON_UTF8_VALUE)
     public ResponseEntity<ControllerResponse> tst1(
-            @RequestParam("sleep") @Nullable Long sleep
+            @ModelAttribute ControllerRequest request
     ) {
+        log.info("Request: {}", request);
         Instant start = Instant.now();
-        aService.save(sleep);
+        aService.save(request);
         return ResponseEntity.ok(ControllerResponse.builder()
                 .result("OK")
                 .thread(currentThread().getName())

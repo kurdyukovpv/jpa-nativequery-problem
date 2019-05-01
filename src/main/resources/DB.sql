@@ -13,4 +13,6 @@ create table tst_b
 
 insert into tst_b (name, value)
 values ('First B', 0);
+insert into tst_b (name, value)
+values ('Second B', 0);
 
