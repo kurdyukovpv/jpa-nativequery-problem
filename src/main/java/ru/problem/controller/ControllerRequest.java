@@ -22,6 +22,8 @@ public class ControllerRequest {
     private boolean withNative = true;
     @Builder.Default
     private long bId = 1;
+    @Builder.Default
+    private boolean flushInsideB = false;
 
     @SuppressWarnings("WeakerAccess")
     public Map<String, List<String>> toParams() {
@@ -31,6 +33,7 @@ public class ControllerRequest {
         }
         params.put("withNative", singletonList(String.valueOf(isWithNative())));
         params.put("bId", singletonList(String.valueOf(getBId())));
+        params.put("flushInsideB", singletonList(String.valueOf(isFlushInsideB())));
         return params;
     }
 }
