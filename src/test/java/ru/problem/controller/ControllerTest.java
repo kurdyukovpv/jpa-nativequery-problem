@@ -159,4 +159,31 @@ public class ControllerTest {
             assertThat(fast.getThread()).isNotEqualTo(slow.getThread());
         });
     }
+
+    @Test//Flaky
+    public void testSlowBeforeFast_withFlushInsideB_onSameB() throws InterruptedException {
+        Duration sleep = Duration.ofSeconds(1);
+        testSlowBeforeFast(sleep, req -> req.bId(1).flushInsideB(true), (slow, fast) -> {
+            //Slow must be slow
+            assertThat(slow.getDuration()).isGreaterThanOrEqualTo(sleep);
+            //todo Fast must be fast but it is slow too
+            assertThat(fast.getDuration()).isGreaterThanOrEqualTo(sleep);
+            //But they works on different threads
+            assertThat(fast.getThread()).isNotEqualTo(slow.getThread());
+        });
+    }
+
+    @Test
+    public void testSlowBeforeFast_withFlushInsideB_onDifferentB() throws InterruptedException {
+        Duration sleep = Duration.ofSeconds(1);
+        AtomicLong bId = new AtomicLong(1);
+        testSlowBeforeFast(sleep, req -> req.bId(bId.getAndIncrement()).flushInsideB(true), (slow, fast) -> {
+            //Slow must be slow
+            assertThat(slow.getDuration()).isGreaterThanOrEqualTo(sleep);
+            //Fast must be fast and it is fast
+            assertThat(fast.getDuration()).isLessThanOrEqualTo(sleep);
+            //But they works on different threads
+            assertThat(fast.getThread()).isNotEqualTo(slow.getThread());
+        });
+    }
 }

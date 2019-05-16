@@ -20,12 +20,15 @@ public class TstBService {
     }
 
     @Transactional
-    public void updateTstsB(long id) {
+    public void updateTstsB(long id, boolean flush) {
         TstB tstB = repository.findById(id).get();
         Long value = tstB.getValue();
         log.info("Value = {}", value);
         tstB.setValue(++value);
         repository.save(tstB);
+        if (flush) {
+            repository.flush();
+        }
     }
 }
 

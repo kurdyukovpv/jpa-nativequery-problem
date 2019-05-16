@@ -28,10 +28,12 @@ public class TstAService {
     public void save(ControllerRequest request) {
         TstA tstA = TstA.builder().name(LocalDateTime.now().toString()).build();
 
-        bService.updateTstsB(request.getBId()); //update TstB (findById+save) @Transactional
+        bService.updateTstsB(request.getBId(), request.isFlushInsideB()); //update TstB (findById+save) @Transactional
+
         if (request.isWithNative()) {
             cService.executeNative(); // native query 'select 1' @Transactional
         }
+
         repository.save(tstA); // insert TstA @Transactional
 
         //emulate long slow transaction if requested
